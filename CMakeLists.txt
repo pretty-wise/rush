@@ -3,7 +3,7 @@ project (rush)
 set (rush_VERSION_MAJOR 0)
 set (rush_VERSION_MINOR 1)
 
-include (../settings.cmake)
+include (settings.cmake)
 
 set(TARGET_EXPORT_NAME "rush-targets")
 set(INSTALL_LIB_DIR lib CACHE PATH "Installation directory for libraries.")
