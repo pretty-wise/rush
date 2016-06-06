@@ -39,7 +39,7 @@ rush_time_t GetAverageRTT(rush_t ctx);
 // @param punch_id Id of connect operation that succeeded.
 // @param address Destination address to be updated.
 endpoint_t ConnectEndpoint(rush_t ctx, punch_op punch_id,
-                           const Base::Url &address);
+                           const Base::Socket::Address &address);
 
 // Remove endpoint because of operation failure.
 // @param ctx Rush context.
@@ -52,7 +52,7 @@ bool RemoveEndpoint(rush_t ctx, punch_op id);
 endpoint_t AddEndpoint(rush_t ctx, punch_op punch_id);
 
 // Add endpoint in connected state.
-endpoint_t AddEndpoint(rush_t ctx, const Base::Url &address);
+endpoint_t AddEndpoint(rush_t ctx, const Base::Socket::Address &address);
 void RemoveEndpoint(rush_t ctx, endpoint_t endpoint);
 void CheckTimeouts(rush_t ctx);
 

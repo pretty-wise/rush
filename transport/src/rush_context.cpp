@@ -18,9 +18,15 @@ void OnEstablished(punch_result res, punch_op id, const char *hostname,
     RemoveEndpoint(ctx, id);
     return;
   }
-  Base::Url address(hostname, port);
-  BASE_INFO(Rush::kRush, "connection established punch(%d) with %s:%s", id,
-            PRINTF_URL(address));
+  Base::Socket::Address address;
+  if(!Base::Socket::Address::CreateUDP(hostname, port, &address)) {
+    BASE_ERROR(Rush::kRush, "failed to create address");
+    RemoveEndpoint(ctx, id);
+    return;
+  }
+
+  BASE_INFO(Rush::kRush, "connection established punch(%d) with %s", id,
+            Base::Socket::Print(address));
   endpoint_t endpoint = ConnectEndpoint(ctx, id, address);
   if(!endpoint) {
     BASE_ERROR(Rush::kRush, "failed to connect endpoint");
@@ -29,11 +35,13 @@ void OnEstablished(punch_result res, punch_op id, const char *hostname,
 
 void OnConnected(const char *hostname, u16 port, void *data) {
   rush_t ctx = static_cast<rush_t>(data);
-  Base::Url addr(hostname, port);
-  BASE_INFO(Rush::kRush, "endpoint connected %s:%s", PRINTF_URL(addr));
+  Base::Socket::Address addr;
+  Base::Socket::Address::CreateUDP(hostname, port, &addr);
+  BASE_INFO(Rush::kRush, "endpoint connected %s", Base::Socket::Print(addr));
   endpoint_t endpoint = AddEndpoint(ctx, addr);
   if(!endpoint) {
-    BASE_ERROR(Rush::kRush, "failed adding endpoint %s:%s", PRINTF_URL(addr));
+    BASE_ERROR(Rush::kRush, "failed adding endpoint %s",
+               Base::Socket::Print(addr));
     return;
   }
   if(ctx->callback.connectivity) {
