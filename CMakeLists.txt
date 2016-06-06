@@ -26,6 +26,7 @@ if(NOT BASE_FOUND)
 endif()
 
 include_directories (
+	${CMAKE_SOURCE_DIR}/transport/include
 	${BASE_INCLUDES}
 )
 

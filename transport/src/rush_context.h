@@ -18,6 +18,7 @@ struct ThroughputRegulation {
   BandwidthLimiter limit;
   bool enabled;
 };
+
 } // namespace Rush
 
 struct rush_context {
@@ -40,8 +41,8 @@ struct rush_context {
 
 namespace Rush {
 
-bool Create(rush_t ctx, Base::Url *private_addr, u16 _mtu, RushCallbacks _cbs,
-            void *_udata);
+bool Create(rush_t ctx, const Base::Url &private_addr, u16 *port, u16 _mtu,
+            RushCallbacks _cbs, void *_udata);
 void Destroy(rush_t ctx);
 bool Startup(rush_t ctx, const Base::Url &server);
 void Shutdown(rush_t ctx);

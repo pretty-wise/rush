@@ -17,11 +17,12 @@ const punch_result kPunchFailure = -1;
 const punch_result kPunchAborted = -2;
 
 typedef struct context *punch_t;
-typedef void (*PunchOnResolve)(punch_result res, u32 public_addr,
-                               u16 public_port, void *data);
+typedef void (*PunchOnResolve)(punch_result res, const char *public_hostname,
+                               u16 public_service, void *data);
 typedef void (*PunchOnEstablished)(punch_result res, punch_op punch_id,
-                                   u32 address, u16 port, void *data);
-typedef void (*PunchOnConnected)(u32 address, u16 port, void *data);
+                                   const char *hostname, u16 service,
+                                   void *data);
+typedef void (*PunchOnConnected)(const char *hostname, u16 service, void *data);
 
 struct PunchConfig {
   Base::Socket::Handle socket;
@@ -56,7 +57,7 @@ void punch_update(punch_t ctx, u32 delta_ms);
 /// @param nbytes Number of bytes passed in buffer
 /// @param from Address of a host the data was received from
 void punch_read(punch_t ctx, s8 *buffer, streamsize nbytes,
-                const Base::Url &from);
+                const Base::Socket::Address &from);
 
 /// Resolves public IP address of the machine.
 /// @param ctx Punch service context

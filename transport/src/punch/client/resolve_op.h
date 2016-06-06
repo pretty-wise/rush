@@ -17,7 +17,8 @@ struct ResolveCommon {
   PunchSocket socket;
   PunchOnResolve resolved_cb;
   void *data;
-  Base::Url punch;
+  Base::Url punch_url;
+  Base::Socket::Address punch_addr;
 };
 
 struct ResolveOperation {

@@ -10,8 +10,8 @@
 rush_t rush_create(RushConfig *config) {
   Base::Url private_addr(Base::AddressIPv4(config->hostname), config->port);
   rush_t ctx = new rush_context;
-  if(!Rush::Create(ctx, &private_addr, config->mtu, config->callbacks,
-                   config->data)) {
+  if(!Rush::Create(ctx, private_addr, &config->port, config->mtu,
+                   config->callbacks, config->data)) {
     delete ctx;
     return nullptr;
   }
@@ -24,7 +24,9 @@ void rush_destroy(rush_t ctx) {
   delete ctx;
 }
 
-int rush_startup(rush_t ctx, const Base::Url &server) {
+// int rush_startup(rush_t ctx, const Base::Url &server) {
+int rush_startup(rush_t ctx, const char *hostname, const char *service) {
+  Base::Url server(hostname, service);
   return Rush::Startup(ctx, server) ? 0 : -1;
 }
 

@@ -34,7 +34,7 @@ void punch_update(punch_t context, u32 delta_ms) {
   context->actual.Update(delta_ms);
 }
 void punch_read(punch_t context, s8 *buffer, streamsize nbytes,
-                const Base::Url &from) {
+                const Base::Socket::Address &from) {
   if(!context) {
     return;
   }

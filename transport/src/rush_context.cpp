@@ -2,11 +2,12 @@
  * Copywrite 2014-2015 Krzysztof Stasik. All rights reserved.
  */
 #include "rush_context.h"
+#include "base/core/str.h"
 
 namespace Rush {
 
-void OnEstablished(punch_result res, punch_op id, u32 addr, u16 port,
-                   void *data) {
+void OnEstablished(punch_result res, punch_op id, const char *hostname,
+                   u16 port, void *data) {
   rush_t ctx = static_cast<rush_t>(data);
   if(res == kPunchFailure) {
     BASE_ERROR(Rush::kRush, "punch(%d) failed", id);
@@ -17,23 +18,22 @@ void OnEstablished(punch_result res, punch_op id, u32 addr, u16 port,
     RemoveEndpoint(ctx, id);
     return;
   }
-  Base::Url address(Base::AddressIPv4(addr), port);
-  BASE_INFO(Rush::kRush, "connection established punch(%d) with %d.%d.%d.%d:%d",
-            id, PRINTF_URL(address));
+  Base::Url address(hostname, port);
+  BASE_INFO(Rush::kRush, "connection established punch(%d) with %s:%s", id,
+            PRINTF_URL(address));
   endpoint_t endpoint = ConnectEndpoint(ctx, id, address);
   if(!endpoint) {
     BASE_ERROR(Rush::kRush, "failed to connect endpoint");
   }
 }
 
-void OnConnected(u32 address, u16 port, void *data) {
+void OnConnected(const char *hostname, u16 port, void *data) {
   rush_t ctx = static_cast<rush_t>(data);
-  Base::Url addr(Base::AddressIPv4(address), port);
-  BASE_INFO(Rush::kRush, "endpoint connected %d.%d.%d.%d:%d", PRINTF_URL(addr));
+  Base::Url addr(hostname, port);
+  BASE_INFO(Rush::kRush, "endpoint connected %s:%s", PRINTF_URL(addr));
   endpoint_t endpoint = AddEndpoint(ctx, addr);
   if(!endpoint) {
-    BASE_ERROR(Rush::kRush, "failed adding endpoint %d.%d.%d.%d:%d",
-               PRINTF_URL(addr));
+    BASE_ERROR(Rush::kRush, "failed adding endpoint %s:%s", PRINTF_URL(addr));
     return;
   }
   if(ctx->callback.connectivity) {
@@ -42,35 +42,36 @@ void OnConnected(u32 address, u16 port, void *data) {
   }
 }
 
-void OnPublicResolve(punch_result res, u32 public_addr, u16 public_port,
-                     void *data) {
+void OnPublicResolve(punch_result res, const char *public_hostname,
+                     u16 public_port, void *data) {
   rush_t ctx = static_cast<rush_t>(data);
   if(res == kPunchFailure || res == kPunchAborted) {
     BASE_ERROR(Rush::kRush, "failed to resolve public address");
     ctx->public_addr = Base::Url(Base::AddressIPv4(0), 0);
     ctx->public_addr = ctx->private_addr; // todo(kstasik): remove this
     // todo(kstasik): report failure back
-    ctx->callback.startup(ctx, public_addr, public_port, ctx->callback_data);
+    ctx->callback.startup(ctx, public_hostname, public_port,
+                          ctx->callback_data);
     return;
   }
-  Base::Url public_url(public_addr, public_port);
-  BASE_INFO(Rush::kRush, "public address resolved to: %d.%d.%d.%d:%d",
+  Base::Url public_url(public_hostname, public_port);
+  BASE_INFO(Rush::kRush, "public address resolved to: %s:%s",
             PRINTF_URL(public_url));
   ctx->public_addr = public_url;
-  ctx->callback.startup(ctx, public_addr, public_port, ctx->callback_data);
+  ctx->callback.startup(ctx, public_hostname, public_port, ctx->callback_data);
 }
 
-bool Create(rush_t ctx, Base::Url *private_addr, u16 _mtu, RushCallbacks _cbs,
-            void *_udata) {
-  u16 port = private_addr->GetPort();
+bool Create(rush_t ctx, const Base::Url &private_addr, u16 *_port, u16 _mtu,
+            RushCallbacks _cbs, void *_udata) {
+  u16 port = private_addr.GetPort();
   Base::Socket::Handle socket = Base::Socket::Udp::Open(&port);
   if(socket == Base::Socket::InvalidHandle) {
     BASE_ERROR(Rush::kRush, "cound not open socket on port %d", port);
     return false;
   }
-  private_addr->SetPort(port);
+  *_port = port;
   ctx->socket = socket;
-  ctx->private_addr = *private_addr;
+  ctx->private_addr = Base::Url(private_addr.GetHostname(), port);
   ctx->time = 0;
   ctx->callback = _cbs;
   ctx->callback_data = _udata;
@@ -140,12 +141,12 @@ endpoint_t Open(rush_t ctx, const Base::Url &private_addr,
     BASE_ERROR(Rush::kRush, "no punch");
     return nullptr;
   }
-  if(ctx->private_addr.GetAddress() == Base::AddressIPv4::kAny) {
+  if(Base::String::strlen(ctx->private_addr.GetHostname()) > 0) {
     BASE_ERROR(Rush::kRush,
                "private address not known. should be provided at rush start");
     return nullptr;
   }
-  if(ctx->public_addr.GetAddress() == Base::AddressIPv4::kAny) {
+  if(Base::String::strlen(ctx->public_addr.GetHostname()) > 0) {
     BASE_ERROR(Rush::kRush, "public address not known. start rush first");
     return nullptr;
   }
@@ -202,8 +203,10 @@ bool GetConnectionInfo(rush_t ctx, endpoint_t endpoint, RushConnection *info) {
   info->handle = endpoint;
   info->rtt = peer->rtt->GetAverage();
   info->send_interval = peer->congestion->SendInterval();
-  info->address = peer->url.GetAddress().GetRaw();
-  info->port = peer->url.GetPort();
+  Base::Url url(peer->addr);
+  Base::String::strncpy(info->hostname, url.GetHostname(),
+                        Base::Url::kHostnameMax);
+  info->port = url.GetPort();
 
   const rush_time_t timeframe = 3000; // millisecond timeframe
   rush_time_t start = ctx->time - timeframe;
@@ -265,8 +268,8 @@ bool GetRegulationInfo(rush_t ctx, RushStreamType type, bool *enabled,
   return true;
 }
 
-void PacketReceived(rush_t ctx, const Base::Url &from, const void *buffer,
-                    streamsize nbytes) {
+void PacketReceived(rush_t ctx, const Base::Socket::Address &from,
+                    const void *buffer, streamsize nbytes) {
   const PacketHeader &header = *reinterpret_cast<const PacketHeader *>(buffer);
   if(header.protocol == kPunchProtocol) {
     punch_read(ctx->punch, (s8 *)buffer + sizeof(PacketHeader),
@@ -316,7 +319,7 @@ void Update(rush_t ctx, rush_time_t dt) {
   punch_update(ctx->punch, dt);
 
   int error;
-  Base::Url from;
+  Base::Socket::Address from;
   streamsize received = 0;
   // todo(kstasik): limit this to some amount of time?
   while((received = Base::Socket::Udp::Recv(ctx->socket, &from, ctx->buffer,
@@ -334,12 +337,12 @@ void Update(rush_t ctx, rush_time_t dt) {
     }
 
     /*BASE_LOG(
-        "data received from %d.%d.%d.%d:%d. %dB. header: %luB. time %f.\n ",
+        "data received from %s:%s. %dB. header: %luB. time %f.\n ",
         PRINTF_URL(from), received, sizeof(PacketHeader), ctx->time);*/
     if(ctx->downstream.enabled &&
        ctx->downstream.limit.Consume(received, ctx->time) == false) {
       // BASE_LOG("downstream limit hit. discarding packet from
-      // %d.%d.%d.%d:%d.", PRINTF_URL(from));
+      // %s:%s.", PRINTF_URL(from));
       continue;
     }
 
@@ -384,12 +387,12 @@ void Update(rush_t ctx, rush_time_t dt) {
       // the loopback socket send introduces 'frame step' delay on packet send
       // and 'frame step' delay on ack receive therefore local packet RTT is
       // (2*frame_step+congestion_send_interval)
-      sent = Base::Socket::Udp::Send(ctx->socket, peer->url, ctx->buffer,
+      sent = Base::Socket::Udp::Send(ctx->socket, peer->addr, ctx->buffer,
                                      packet_size, &error);
     }
 
     if(sent) {
-      /*BASE_LOG("data sent to	 %d.%d.%d.%d:%d. %dB. header: %luB. seq: %d "
+      /*BASE_LOG("data sent to	 %s:%s. %dB. header: %luB. seq: %d "
                "ack: %d. time %f, frame: %d.\n",
                PRINTF_URL(peer->url), packet_size, sizeof(PacketHeader),
                header.id, header.ack, ctx->time, s_frame_id);*/
@@ -401,8 +404,8 @@ void Update(rush_t ctx, rush_time_t dt) {
                                peer->congestion->SendInterval());
     } else {
       // todo(kstasik): check error and close endpoint.
-      BASE_LOG("could not send data to %d.%d.%d.%d:%d. error: %d.\n",
-               PRINTF_URL(peer->url), error);
+      BASE_LOG("could not send data to %s. error: %d.\n",
+               Base::Socket::Print(peer->addr), error);
     }
 
     if(should_break) {

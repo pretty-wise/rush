@@ -14,7 +14,7 @@ typedef u32 EndpointId;
 
 struct rush_endpoint {
   EndpointId id;
-  Base::Url url;
+  Base::Socket::Address addr;
   Rush::AckInfo ack;
   Rush::RttInfo *rtt;
   Rush::CongestionInfo *congestion;
@@ -29,7 +29,7 @@ namespace Rush {
 bool IsConnected(endpoint_t endpoint);
 
 bool CanAddEndpoint(rush_t ctx);
-endpoint_t FindEndpoint(rush_t ctx, const Base::Url &address);
+endpoint_t FindEndpoint(rush_t ctx, const Base::Socket::Address &address);
 endpoint_t Validate(rush_t ctx, endpoint_t endpoint);
 rush_time_t GetAverageSendInterval(rush_t ctx);
 rush_time_t GetAverageRTT(rush_t ctx);

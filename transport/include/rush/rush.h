@@ -32,7 +32,7 @@ enum RushStreamType { kRushUpstream, kRushDownstream };
 struct RushConnection {
   endpoint_t handle;
   u32 rtt;
-  u32 address;
+  char hostname[Base::Url::kHostnameMax];
   u16 port;
   u32 upstream_bps;
   u32 downstream_bps;
@@ -41,7 +41,7 @@ struct RushConnection {
 };
 
 struct RushCallbacks {
-  void (*startup)(rush_t ctx, u32 public_addr, u16 public_port, void *data);
+  void (*startup)(rush_t ctx, const char *hostname, u16 port, void *data);
   void (*connectivity)(rush_t ctx, endpoint_t endpoint, Connectivity info,
                        void *data);
   void (*unpack)(rush_t ctx, endpoint_t endpoint, rush_sequence_t id,
@@ -112,7 +112,8 @@ int rush_time(rush_t ctx, rush_time_t *time);
 /// @param ctx Rush context.
 /// @param server Punch server address.
 /// @return 0 on success, otherwise false.
-int rush_startup(rush_t ctx, const Base::Url &server);
+// int rush_startup(rush_t ctx, const Base::Url &server);
+int rush_startup(rush_t ctx, const char *hostname, const char *service);
 
 /// Shutdown rush.
 /// @param ctx Rush context.

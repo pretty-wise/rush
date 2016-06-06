@@ -14,7 +14,7 @@ namespace Punch {
 
 PunchSocket::PunchSocket(Base::Socket::Handle sock) : m_socket(sock) {}
 
-bool PunchSocket::SendToPeer(const Base::Url &to, const void *data,
+bool PunchSocket::SendToPeer(const Base::Socket::Address &to, const void *data,
                              u16 nbytes) const {
   const u16 kMaxPacketSize = 1024;
   char packet[kMaxPacketSize];
@@ -36,7 +36,7 @@ bool PunchSocket::SendToPeer(const Base::Url &to, const void *data,
   return Base::Socket::Udp::Send(m_socket, to, packet, packet_size, &error);
 }
 
-bool PunchSocket::Send(const Base::Url &to, const void *data,
+bool PunchSocket::Send(const Base::Socket::Address &to, const void *data,
                        u16 nbytes) const {
   int error;
   bool res = Base::Socket::Udp::Send(m_socket, to, data, nbytes, &error);

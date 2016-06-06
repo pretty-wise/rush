@@ -19,10 +19,10 @@ static const s32 kPunchCommandRetryMs = 1000;
 struct PunchOperation {
   // kRequest means a_url is the originator.
   enum Type { kRequest, kExternal } type;
-  Base::Url a_public;
-  Base::Url a_private;
-  Base::Url b_public;
-  Base::Url b_private;
+  Base::Socket::Address a_public;
+  Base::Socket::Address a_private;
+  Base::Socket::Address b_public;
+  Base::Socket::Address b_private;
   s32 punch_resend;
   s32 timeout;
   Rush::Punch::RequestId request_id;

@@ -63,15 +63,12 @@ void CreateConnectRequest(ConnectRequest *data, RequestId req_id,
 
 u32 UpdateConnectRequest(RequestId id, ConnectRequest *data,
                          const ConnectCommon &config) {
-  Msg::ConnectRequest message = {
-      MessageType::kPunchThroughStart,       id,
-      data->a_private.GetAddress().GetRaw(), data->a_private.GetPort(),
-      data->a_public.GetAddress().GetRaw(),  data->a_public.GetPort(),
-      data->b_private.GetAddress().GetRaw(), data->b_private.GetPort(),
-      data->b_public.GetAddress().GetRaw(),  data->b_public.GetPort()};
+  Msg::ConnectRequest message(MessageType::kPunchThroughStart, id,
+                              data->a_private, data->a_public, data->b_private,
+                              data->b_public);
   message.hton();
-  bool res =
-      config.socket.Send(config.punch, (const void *)&message, sizeof(message));
+  bool res = config.socket.Send(config.address, (const void *)&message,
+                                sizeof(message));
   BASE_DEBUG(
       kPunchLog,
       "connect out(kPunchThroughStart) id(%d) request #%d, %dms. status '%s'",
@@ -94,9 +91,12 @@ void CreateConnectOp(ConnectOperation *data, RequestId connect_id,
       is_outgoing ? ConnectOperation::kEstablish : ConnectOperation::kConnect;
   data->request_id = request_id;
   data->punch_id = connect_id;
-  data->private_addr = priv_addr;
-  data->public_addr = pub_addr;
+  data->private_url = priv_addr;
+  data->public_url = pub_addr;
   data->connected = false;
+
+  Base::Socket::Address::CreateUDP(data->private_url, &data->private_addr);
+  Base::Socket::Address::CreateUDP(data->public_url, &data->public_addr);
 }
 
 u32 UpdateConnectOp(RequestId id, ConnectOperation *data,
@@ -107,7 +107,7 @@ u32 UpdateConnectOp(RequestId id, ConnectOperation *data,
                                  Msg::ConnectProbe::kPrivate, id};
     message.hton();
 
-    bool nat_device_present = data->private_addr == data->public_addr;
+    bool nat_device_present = data->private_url == data->public_url;
     bool private_sent = false;
     if(!nat_device_present) {
       private_sent = config.socket.SendToPeer(
@@ -115,15 +115,14 @@ u32 UpdateConnectOp(RequestId id, ConnectOperation *data,
     }
     /*bool public_sent = */ config.socket.SendToPeer(
         data->public_addr, static_cast<void *>(&message), sizeof(message));
-    BASE_DEBUG(kPunchLog,
-               "connect out(kPunchThroughProbeRequest) %d.%d.%d.%d:%d "
-               "connect(%d) #%d, %dms.",
-               PRINTF_URL(data->private_addr), id, data->retry_count,
+    BASE_DEBUG(kPunchLog, "connect out(kPunchThroughProbeRequest) %s:%s "
+                          "connect(%d) #%d, %dms.",
+               PRINTF_URL(data->private_url), id, data->retry_count,
                data->retry_time);
-    BASE_DEBUG(
-        kPunchLog, "connect out(kPunchThroughProbeRequest) %d.%d.%d.%d:%d "
-                   "connect(%d), #%d, %dms.",
-        PRINTF_URL(data->public_addr), id, data->retry_count, data->retry_time);
+    BASE_DEBUG(kPunchLog, "connect out(kPunchThroughProbeRequest) %s:%s "
+                          "connect(%d), #%d, %dms.",
+               PRINTF_URL(data->public_url), id, data->retry_count,
+               data->retry_time);
   } break;
   case ConnectOperation::kReport: {
     BASE_DEBUG(kPunchLog, "connect id(%d) report #%d, %dms.", id,
@@ -139,13 +138,13 @@ u32 UpdateConnectOp(RequestId id, ConnectOperation *data,
   return retry_in;
 }
 
-void OnProbeRequest(RequestId id, ConnectOperation *data, const Base::Url &from,
+void OnProbeRequest(RequestId id, ConnectOperation *data,
+                    const Base::Socket::Address &from,
                     const Msg::ConnectProbe::Type type,
                     const ConnectCommon &config) {
-  BASE_DEBUG(
-      kPunchLog,
-      "connect in(kPunchThroughProbeRequest) connect(%d) from %d.%d.%d.%d:%d",
-      id, PRINTF_URL(from));
+  BASE_DEBUG(kPunchLog,
+             "connect in(kPunchThroughProbeRequest) connect(%d) from %s", id,
+             Base::Socket::Print(from));
 
   Msg::ConnectProbe message = {MessageType::kPunchThroughProbeResponse, type,
                                id};
@@ -160,19 +159,18 @@ void OnProbeRequest(RequestId id, ConnectOperation *data, const Base::Url &from,
   /*bool sent = */ config.socket.SendToPeer(from, static_cast<void *>(&message),
                                             sizeof(message));
 
-  BASE_DEBUG(
-      kPunchLog,
-      "connect out(kPunchThroughProbeResponse) connect(%d) to %d.%d.%d.%d:%d",
-      id, PRINTF_URL(from));
+  BASE_DEBUG(kPunchLog,
+             "connect out(kPunchThroughProbeResponse) connect(%d) to %s", id,
+             Base::Socket::Print(from));
 }
 
 void OnProbeResponse(RequestId id, ConnectOperation *data,
-                     const Base::Url &from, const Msg::ConnectProbe::Type type,
+                     const Base::Socket::Address &from,
+                     const Msg::ConnectProbe::Type type,
                      const ConnectCommon &config) {
-  BASE_DEBUG(
-      kPunchLog,
-      "connect in(kPunchThroughProbeResponse) connect(%d) from %d.%d.%d.%d:%d",
-      id, PRINTF_URL(from));
+  BASE_DEBUG(kPunchLog,
+             "connect in(kPunchThroughProbeResponse) connect(%d) from %s", id,
+             Base::Socket::Print(from));
   if(data->connected) {
     return; // already connected
   }
@@ -180,19 +178,17 @@ void OnProbeResponse(RequestId id, ConnectOperation *data,
   data->retry_count = 0;
   data->retry_time = 100;
   data->state = ConnectOperation::kReport;
+  Base::Url url(from);
   if(data->type == ConnectOperation::kEstablish) {
     BASE_ASSERT(data->request_id != 0);
-    BASE_INFO(kPunchLog,
-              "connection established with %d.%d.%d.%d:%d connect(%d)",
-              PRINTF_URL(from), id);
-    config.established_cb(kPunchSuccess, data->request_id,
-                          from.GetAddress().GetRaw(), from.GetPort(),
-                          config.data);
+    BASE_INFO(kPunchLog, "connection established with %s connect(%d)",
+              Base::Socket::Print(from), id);
+    config.established_cb(kPunchSuccess, data->request_id, url.GetHostname(),
+                          url.GetPort(), config.data);
   } else {
-    BASE_INFO(kPunchLog, "connected with %d.%d.%d.%d:%d connect(%d)",
-              PRINTF_URL(from), id);
-    config.connected_cb(from.GetAddress().GetRaw(), from.GetPort(),
-                        config.data);
+    BASE_INFO(kPunchLog, "connected with %s connect(%d)",
+              Base::Socket::Print(from), id);
+    config.connected_cb(url.GetHostname(), url.GetPort(), config.data);
   }
 }
 

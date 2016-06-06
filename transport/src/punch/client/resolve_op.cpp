@@ -61,8 +61,8 @@ void CreateResolveOp(ResolveOperation *data, RequestId req_id,
   data->retry_time = 100;
   data->message.type = MessageType::kMappedAddressRequest;
   data->message.id = req_id;
-  data->message.private_address = private_address.GetAddress().GetRaw();
-  data->message.private_port = private_address.GetPort();
+  Msg::CopyAddress(private_address, data->message.private_hostname,
+                   data->message.private_service);
 }
 
 u32 UpdateResolveOp(RequestId id, ResolveOperation *data,
@@ -71,7 +71,7 @@ u32 UpdateResolveOp(RequestId id, ResolveOperation *data,
   case ResolveOperation::kBindingRequest: {
     Msg::BindingRequest message = data->message;
     message.hton();
-    bool res = config.socket.Send(config.punch, (const void *)&message,
+    bool res = config.socket.Send(config.punch_addr, (const void *)&message,
                                   sizeof(message));
     BASE_DEBUG(
         kPunchLog, "resolve out(kMappedAddressRequest) id(%d) binding request "
@@ -86,7 +86,8 @@ u32 UpdateResolveOp(RequestId id, ResolveOperation *data,
   case ResolveOperation::kKeepAlive: {
     BASE_DEBUG(kPunchLog, "out(kKeepAlive) id(%d)", id);
     Msg::KeepAlive message = {MessageType::kMappedAddressKeepAlive};
-    config.socket.Send(config.punch, (const void *)&message, sizeof(message));
+    config.socket.Send(config.punch_addr, (const void *)&message,
+                       sizeof(message));
   } break;
   }
   u32 retry_time = GetNextRetryTime(data);
@@ -104,9 +105,9 @@ void OnBindingResponse(RequestId id, ResolveOperation *data,
   data->retry_count = 0;
   data->retry_time = 100;
   BASE_DEBUG(kPunchLog, "resolve id(%d) binding response received priv: "
-                        "%d.%d.%d.%d:%d, pub: %d.%d.%d.%d:%d",
+                        "%s:%s, pub: %s:%s",
              id, PRINTF_URL(private_url), PRINTF_URL(public_url));
-  config.resolved_cb(kPunchSuccess, public_url.GetAddress().GetRaw(),
+  config.resolved_cb(kPunchSuccess, public_url.GetHostname(),
                      public_url.GetPort(), config.data);
 }
 

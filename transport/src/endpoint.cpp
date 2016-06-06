@@ -20,9 +20,10 @@ void OnDelivered(rush_sequence_t id, rush_time_t time, rush_t ctx,
   }
 }
 
-void OnLost(rush_sequence_t id, rush_time_t time, rush_t ctx, endpoint_t endpoint) {
+void OnLost(rush_sequence_t id, rush_time_t time, rush_t ctx,
+            endpoint_t endpoint) {
   //	BASE_LOG("discarding packet lost %p %d.\n", endpoint,
-  // endpoint->url.GetPort());
+  // endpoint->addr.GetPort());
   endpoint->congestion->TickLost(time, id);
   if(ctx->callback.ack) {
     ctx->callback.ack(ctx, static_cast<endpoint_t>(endpoint), id,
@@ -43,10 +44,10 @@ bool CanAddEndpoint(rush_t ctx) {
   return false;
 }
 
-endpoint_t FindEndpoint(rush_t ctx, const Base::Url &address) {
+endpoint_t FindEndpoint(rush_t ctx, const Base::Socket::Address &address) {
   for(u32 i = 0; i < kMaxEndpoint; ++i) {
     if(ctx->endpoints[i].state == rush_endpoint::st_CONNECTED &&
-       ctx->endpoints[i].url == address) {
+       ctx->endpoints[i].addr == address) {
       return &ctx->endpoints[i];
     }
   }
@@ -101,7 +102,7 @@ void InitializeEndpoint(rush_t ctx, endpoint_t endpoint) {
   static EndpointId g_generator = 0;
   endpoint->id = ++g_generator;
   DeliveryCallbacks cbs = {&OnDelivered, &OnLost /*, &OnAkc*/};
-  endpoint->url = Base::Url(Base::AddressIPv4(0), 0);
+  endpoint->addr = Base::Socket::Address();
   endpoint->punch_id = 0;
   endpoint->ack = AckInfo(cbs, ctx, endpoint);
   endpoint->rtt = new RttInfo(GetAverageRTT(ctx));
@@ -121,25 +122,21 @@ void TerminateEndpoint(rush_t ctx, endpoint_t endpoint) {
   delete endpoint->congestion;
   delete endpoint->upstream_log;
   delete endpoint->downstream_log;
-  endpoint->url = Base::Url(Base::AddressIPv4(0), 0);
+  endpoint->addr = Base::Socket::Address();
   endpoint->punch_id = 0;
   endpoint->state = rush_endpoint::st_INVALID;
 }
 
-endpoint_t AddEndpoint(rush_t ctx, const Base::Url &address) {
-  for(u32 i = 0; i < kMaxEndpoint; ++i) {
-    if(ctx->endpoints[i].state != rush_endpoint::st_INVALID &&
-       ctx->endpoints[i].url == address) {
-      // connection already exist!
-      return 0;
-    }
+endpoint_t AddEndpoint(rush_t ctx, const Base::Socket::Address &address) {
+  if(FindEndpoint(ctx, address) != nullptr) {
+    return 0; // connection already exists!
   }
   for(u32 i = 0; i < kMaxEndpoint; ++i) {
     if(ctx->endpoints[i].state == rush_endpoint::st_INVALID) {
       endpoint_t endpoint = &ctx->endpoints[i];
       InitializeEndpoint(ctx, endpoint);
       ctx->num_endpoints++;
-      endpoint->url = address;
+      endpoint->addr = address;
       endpoint->state = rush_endpoint::st_CONNECTED; // set at the end!
       return endpoint;
     }
@@ -162,12 +159,12 @@ endpoint_t AddEndpoint(rush_t ctx, punch_op punch_id) {
 }
 
 endpoint_t ConnectEndpoint(rush_t ctx, punch_op punch_id,
-                           const Base::Url &address) {
+                           const Base::Socket::Address &address) {
   for(u32 i = 0; i < kMaxEndpoint; ++i) {
     endpoint_t endpoint = &ctx->endpoints[i];
     if(endpoint->state == rush_endpoint::st_CONNECTING &&
        endpoint->punch_id == punch_id) {
-      endpoint->url = address;
+      endpoint->addr = address;
       endpoint->state = rush_endpoint::st_CONNECTED;
       return endpoint;
     }

@@ -4,6 +4,7 @@
 #include "punch_client.h"
 
 #include "../common/punch_defs.h"
+#include "base/core/assert.h"
 
 #include <algorithm>
 
@@ -11,7 +12,7 @@ namespace Rush {
 namespace Punch {
 
 bool IsAddressValid(const Base::Url &addr) {
-  return addr.GetPort() != 0 && addr.GetAddress().GetRaw() != 0;
+  return strlen(addr.GetHostname()) > 0 && strlen(addr.GetService()) > 0;
 }
 
 bool IsValid(const PunchConfig &config) {
@@ -25,10 +26,15 @@ bool IsValid(const PunchConfig &config) {
 PunchClient::PunchClient(const PunchConfig &config)
     : m_private_addr(config.private_address), m_socket(config.socket),
       m_generator(0) {
-  m_resolveData = {config.socket, config.resolved_cb, config.data,
-                   config.punch};
-  m_connectData = {config.socket, config.punch, config.established_cb,
-                   config.connected_cb, config.data};
+  Base::Socket::Address address;
+  bool res = Base::Socket::Address::CreateUDP(config.punch, &address);
+  BASE_ASSERT(res);
+
+  m_resolveData = {config.socket, config.resolved_cb, config.data, config.punch,
+                   address};
+
+  m_connectData = {config.socket,         config.punch,        address,
+                   config.established_cb, config.connected_cb, config.data};
 }
 
 PunchClient::~PunchClient() {}
@@ -53,8 +59,8 @@ punch_op PunchClient::Connect(const Base::Url &a_private,
                               const Base::Url &a_public,
                               const Base::Url &b_private,
                               const Base::Url &b_public) {
-  BASE_INFO(kPunchLog, "connect %d.%d.%d%d:%d (%d.%d.%d.%d:%d) with "
-                       "%d.%d.%d.%d:%d (%d.%d.%d.%d:%d)",
+  BASE_INFO(kPunchLog, "connect %s:%s (%s:%s) with "
+                       "%s:%s (%s:%s)",
             PRINTF_URL(a_public), PRINTF_URL(a_private), PRINTF_URL(b_public),
             PRINTF_URL(b_private));
 
@@ -85,7 +91,7 @@ void PunchClient::Update(u32 delta_ms) {
 }
 
 void PunchClient::Read(const void *buffer, streamsize nbytes,
-                       const Base::Url &from) {
+                       const Base::Socket::Address &from) {
   MessageType type = reinterpret_cast<MessageType>(*(MessageType *)buffer);
 
   if(type == MessageType::kMappedAddressResponse) {
@@ -94,8 +100,8 @@ void PunchClient::Read(const void *buffer, streamsize nbytes,
 
     BASE_DEBUG(kPunchLog, "resolve in(kMappedAddressResponse)");
 
-    Base::Url public_url(message.public_address, message.public_port);
-    Base::Url private_url(message.private_address, message.private_port);
+    Base::Url public_url(message.public_hostname, message.public_service);
+    Base::Url private_url(message.private_hostname, message.private_service);
     bool updated =
         m_resolve.SetTimeout(message.id, [&](ResolveOperation &data) {
           OnBindingResponse(message.id, &data, private_url, public_url,
@@ -114,8 +120,8 @@ void PunchClient::Read(const void *buffer, streamsize nbytes,
     Msg::ConnectStart message = (*(const Msg::ConnectStart *)buffer);
     message.ntoh();
 
-    Base::Url priv_addr(message.private_address, message.private_port);
-    Base::Url pub_addr(message.public_address, message.public_port);
+    Base::Url priv_addr(message.private_hostname, message.private_service);
+    Base::Url pub_addr(message.public_hostname, message.public_service);
 
     BASE_DEBUG(kPunchLog, "connect in(kPunchThroughStart) connect(%d) id(%d)",
                message.connect_id, message.request_id);

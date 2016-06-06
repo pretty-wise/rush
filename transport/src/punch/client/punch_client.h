@@ -31,7 +31,8 @@ public:
   punch_op Connect(const Base::Url &a_private, const Base::Url &a_public,
                    const Base::Url &b_private, const Base::Url &b_public);
   void Update(u32 delta_ms);
-  void Read(const void *data, streamsize nbytes, const Base::Url &from);
+  void Read(const void *data, streamsize nbytes,
+            const Base::Socket::Address &from);
   void Abort(punch_op id);
 
 private:

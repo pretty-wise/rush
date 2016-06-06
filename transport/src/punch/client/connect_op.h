@@ -23,7 +23,8 @@ static const s32 kConnectRetryCount = 10;
 // Data common to all connect operations.
 struct ConnectCommon {
   PunchSocket socket;
-  Base::Url punch;
+  Base::Url punch_url;
+  Base::Socket::Address address;
   PunchOnEstablished established_cb;
   PunchOnConnected connected_cb;
   void *data;
@@ -47,8 +48,10 @@ struct ConnectOperation {
   enum Type { kEstablish, kConnect } type;
   RequestId request_id;
   RequestId punch_id;
-  Base::Url private_addr;
-  Base::Url public_addr;
+  Base::Url private_url;
+  Base::Url public_url;
+  Base::Socket::Address private_addr;
+  Base::Socket::Address public_addr;
   bool connected;
 };
 
@@ -70,11 +73,13 @@ void CreateConnectOp(ConnectOperation *data, RequestId connect_id,
 u32 UpdateConnectOp(RequestId id, ConnectOperation *data,
                     const ConnectCommon &config);
 
-void OnProbeRequest(RequestId id, ConnectOperation *data, const Base::Url &from,
+void OnProbeRequest(RequestId id, ConnectOperation *data,
+                    const Base::Socket::Address &from,
                     const Msg::ConnectProbe::Type type,
                     const ConnectCommon &config);
 void OnProbeResponse(RequestId id, ConnectOperation *data,
-                     const Base::Url &from, const Msg::ConnectProbe::Type type,
+                     const Base::Socket::Address &from,
+                     const Msg::ConnectProbe::Type type,
                      const ConnectCommon &config);
 
 } // namespace Punch

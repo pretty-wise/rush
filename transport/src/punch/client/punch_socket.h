@@ -14,8 +14,10 @@ public:
   PunchSocket() : m_socket(Base::Socket::InvalidHandle) {}
   PunchSocket(Base::Socket::Handle sock);
 
-  bool SendToPeer(const Base::Url &to, const void *data, u16 nbytes) const;
-  bool Send(const Base::Url &to, const void *data, u16 nbytes) const;
+  bool SendToPeer(const Base::Socket::Address &to, const void *data,
+                  u16 nbytes) const;
+  bool Send(const Base::Socket::Address &to, const void *data,
+            u16 nbytes) const;
 
 private:
   Base::Socket::Handle m_socket;
