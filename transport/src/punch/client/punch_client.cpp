@@ -12,6 +12,10 @@ namespace Rush {
 namespace Punch {
 
 bool IsAddressValid(const Base::Url &addr) {
+  Base::Socket::Address address;
+  if(!Base::Socket::Address::CreateUDP(addr, &address)) {
+    return false;
+  }
   return strlen(addr.GetHostname()) > 0 && strlen(addr.GetService()) > 0;
 }
 

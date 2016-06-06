@@ -20,6 +20,8 @@ extern "C" {
 
 punch_t punch_create(const PunchConfig &config) {
   if(!Rush::Punch::IsValid(config)) {
+    BASE_ERROR(kPunchLog, "invalid config private addr: %s:%s. punch %s:%s",
+               PRINTF_URL(config.private_address), PRINTF_URL(config.punch));
     return nullptr;
   }
   return new context(config);
