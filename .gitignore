@@ -5,3 +5,4 @@ build-gcc/*
 build-xcode/*
 build-qt/*
 *.pyc
+RushConfigVersion.cmake
