@@ -136,6 +136,11 @@ int rush_limit_info(rush_t ctx, RushStreamType type, u16 *bps);
 /// @param file_path A path to the log file.
 int rush_log(rush_t ctx, const char *file_path);
 
+int rush_log_register(void (*loghook)(int level, const char *log_line,
+                                      int length, void *context));
+
+void rush_log_unregister(int logid);
+
 #if defined __cplusplus
 } // extern "C"
 #endif

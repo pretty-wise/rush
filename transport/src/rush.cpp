@@ -1,11 +1,11 @@
 /*
  * Copywrite 2014-2015 Krzysztof Stasik. All rights reserved.
  */
-#include "rush/rush.h"
-#include "congestion.h"
-#include "rush_context.h"
 #include "base/core/macro.h"
 #include "base/math/math.h"
+#include "congestion.h"
+#include "rush/rush.h"
+#include "rush_context.h"
 
 rush_t rush_create(RushConfig *config) {
   Base::Url private_addr(Base::AddressIPv4(config->hostname), config->port);
@@ -13,9 +13,9 @@ rush_t rush_create(RushConfig *config) {
   if(!Rush::Create(ctx, private_addr, &config->port, config->mtu,
                    config->callbacks, config->data)) {
     delete ctx;
+    BASE_ERROR(Rush::kRush, "failed to initialize");
     return nullptr;
   }
-  config->port = private_addr.GetPort();
   return ctx;
 }
 
@@ -74,3 +74,9 @@ void rush_update(rush_t ctx, rush_time_t dt) { Rush::Update(ctx, dt); }
 int rush_log(rush_t ctx, const char *file_path) {
   return Rush::SetLog(ctx, file_path) ? 0 : -1;
 }
+int rush_log_register(void (*loghook)(int level, const char *log_line,
+                                      int length, void *context)) {
+  return Base::Log::Register((int)-1, loghook, 0);
+}
+
+void rush_log_unregister(int id) { Base::Log::Unregister(id); }

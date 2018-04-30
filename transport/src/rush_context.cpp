@@ -1,8 +1,8 @@
 /*
  * Copywrite 2014-2015 Krzysztof Stasik. All rights reserved.
  */
-#include "rush_context.h"
 #include "base/core/str.h"
+#include "rush_context.h"
 
 namespace Rush {
 
@@ -192,10 +192,11 @@ void Close(rush_t ctx, endpoint_t endpoint) {
     punch_abort(ctx->punch, endpoint->punch_id);
   }
   if(ctx->callback.connectivity) {
-    ctx->callback.connectivity(
-        ctx, endpoint, is_connecting ? Connectivity::kRushConnectionFailed
-                                     : Connectivity::kRushDisconnected,
-        ctx->callback_data);
+    ctx->callback.connectivity(ctx, endpoint,
+                               is_connecting
+                                   ? Connectivity::kRushConnectionFailed
+                                   : Connectivity::kRushDisconnected,
+                               ctx->callback_data);
   }
   RemoveEndpoint(ctx, peer);
 }
