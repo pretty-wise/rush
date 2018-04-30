@@ -46,7 +46,7 @@ target_link_libraries(punch_client PUBLIC base)
 #
 # punch server
 #
-add_library (punch_server
+add_library (punch_server STATIC
 	transport/include/rush/punch/server.h
 	transport/src/punch/server/server.cpp
 	transport/src/punch/server/punch_server.h
@@ -64,7 +64,7 @@ target_link_libraries (punch_server PRIVATE base)
 # rush transport
 #
 
-add_library (rush
+set(RUSH_SOURCE
   transport/include/rush/rush.h
   transport/include/rush/utils.h
   transport/src/utils.cpp
@@ -84,10 +84,25 @@ add_library (rush
 	transport/src/transmission_log.cpp
 	transport/src/bandwidth_limiter.h
 	transport/src/bandwidth_limiter.cpp
+)
+
+
+add_library (rush STATIC
+	${RUSH_SOURCE}
 )	
+
+add_library (rushShared SHARED
+	${RUSH_SOURCE}
+)
+set_target_properties(rushShared PROPERTIES OUTPUT_NAME rush) # force the same name as static library
 
 target_link_libraries (rush PRIVATE 
 	base 
+	punch_client
+)
+
+target_link_libraries (rushShared PRIVATE
+	base
 	punch_client
 )
 
