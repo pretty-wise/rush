@@ -4,7 +4,6 @@
 #pragma once
 
 #include "base/core/types.h"
-#include "base/network/url.h"
 
 #if defined __cplusplus
 extern "C" {
@@ -17,6 +16,7 @@ typedef float rush_time_t;
 typedef u32 rush_sequence_t;
 
 static const rush_time_t kRushConnectionTimeout = 10 * 1000.f;
+static const u32 kHostnameMax = 128;
 
 enum Connectivity {
   kRushConnected,
@@ -32,7 +32,7 @@ enum RushStreamType { kRushUpstream, kRushDownstream };
 struct RushConnection {
   endpoint_t handle;
   u32 rtt;
-  char hostname[Base::Url::kHostnameMax];
+  char hostname[kHostnameMax];
   u16 port;
   u32 upstream_bps;
   u32 downstream_bps;
@@ -81,8 +81,8 @@ void rush_update(rush_t ctx, rush_time_t dt);
 /// @param ctx Rush context.
 /// @param dest Destination address.
 /// @return Endpoint handle. 0 if connection failed.
-endpoint_t rush_open(rush_t ctx, const Base::Url &private_addr,
-                     const Base::Url &public_addr);
+endpoint_t rush_open(rush_t ctx, const char *private_addr, u32 private_addr_len,
+                     const char *public_addr, u32 public_addr_len);
 
 /// Closes given endpoint.
 /// @param ctx Rush context.
@@ -112,7 +112,6 @@ int rush_time(rush_t ctx, rush_time_t *time);
 /// @param ctx Rush context.
 /// @param server Punch server address.
 /// @return 0 on success, otherwise false.
-// int rush_startup(rush_t ctx, const Base::Url &server);
 int rush_startup(rush_t ctx, const char *hostname, const char *service);
 
 /// Shutdown rush.

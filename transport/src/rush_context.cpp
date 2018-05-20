@@ -80,6 +80,9 @@ bool Create(rush_t ctx, const Base::Url &private_addr, u16 *_port, u16 _mtu,
   *_port = port;
   ctx->socket = socket;
   ctx->private_addr = Base::Url(private_addr.GetHostname(), port);
+  // todo(kstasik): public_addr needs to be set only when not using punch. now -
+  // it is always set
+  ctx->public_addr = Base::Url(private_addr.GetHostname(), port);
   ctx->time = 0;
   ctx->callback = _cbs;
   ctx->callback_data = _udata;
@@ -145,16 +148,16 @@ void Shutdown(rush_t context) {}
 
 endpoint_t Open(rush_t ctx, const Base::Url &private_addr,
                 const Base::Url &public_addr) {
-  if(!ctx->punch) {
-    BASE_ERROR(Rush::kRush, "no punch");
-    return nullptr;
-  }
-  if(Base::String::strlen(ctx->private_addr.GetHostname()) > 0) {
+  // todo(kstasik): validate input
+  BASE_INFO(Rush::kRush, "opening %s:%s", private_addr.GetHostname(),
+            private_addr.GetService());
+
+  if(Base::String::strlen(ctx->private_addr.GetHostname()) <= 0) {
     BASE_ERROR(Rush::kRush,
                "private address not known. should be provided at rush start");
     return nullptr;
   }
-  if(Base::String::strlen(ctx->public_addr.GetHostname()) > 0) {
+  if(Base::String::strlen(ctx->public_addr.GetHostname()) <= 0) {
     BASE_ERROR(Rush::kRush, "public address not known. start rush first");
     return nullptr;
   }
@@ -163,23 +166,44 @@ endpoint_t Open(rush_t ctx, const Base::Url &private_addr,
     return nullptr;
   }
 
-  punch_op punch_id =
-      punch_connect(ctx->punch, ctx->private_addr, ctx->public_addr,
-                    private_addr, public_addr);
-  if(punch_id == 0) {
-    BASE_ERROR(Rush::kRush, "failed to start punch operation");
-    return nullptr;
-  }
+  if(ctx->punch) {
+    punch_op punch_id =
+        punch_connect(ctx->punch, ctx->private_addr, ctx->public_addr,
+                      private_addr, public_addr);
+    if(punch_id == 0) {
+      BASE_ERROR(Rush::kRush, "failed to start punch operation");
+      return nullptr;
+    }
 
-  BASE_INFO(Rush::kRush, "adding endpoint punch(%d) operation", punch_id);
-  endpoint_t endpoint = AddEndpoint(ctx, punch_id);
-  if(!endpoint) {
-    BASE_ERROR(Rush::kRush, "can't reserve an endpoint");
-    punch_abort(ctx->punch, punch_id);
-    return nullptr;
-  }
+    BASE_INFO(Rush::kRush, "adding endpoint punch(%d) operation", punch_id);
+    endpoint_t endpoint = AddEndpoint(ctx, punch_id);
+    if(!endpoint) {
+      BASE_ERROR(Rush::kRush, "can't reserve an endpoint");
+      punch_abort(ctx->punch, punch_id);
+      return nullptr;
+    }
 
-  return endpoint;
+    return endpoint;
+  } else {
+    Base::Socket::Address address;
+    if(!Base::Socket::Address::CreateUDP(public_addr, &address)) {
+      BASE_ERROR(Rush::kRush, "failed to create address from '%s:%s'",
+                 public_addr.GetHostname(), public_addr.GetService());
+      return nullptr;
+    }
+
+    static punch_op generator = 1;
+    punch_op id = ++generator;
+    endpoint_t endpoint = AddEndpoint(ctx, id);
+    endpoint = ConnectEndpoint(ctx, id, address);
+    if(!endpoint) {
+      BASE_ERROR(Rush::kRush, "failed to connect endpoint");
+      return nullptr;
+    }
+    BASE_INFO(Rush::kRush, "created endpoint %p", endpoint);
+    return endpoint;
+  }
+  return nullptr;
 }
 
 void Close(rush_t ctx, endpoint_t endpoint) {

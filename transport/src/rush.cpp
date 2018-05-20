@@ -8,6 +8,10 @@
 #include "rush_context.h"
 
 rush_t rush_create(RushConfig *config) {
+  if(!config) {
+    BASE_ERROR(Rush::kRush, "no config specified");
+    return nullptr;
+  }
   Base::Url private_addr(Base::AddressIPv4(config->hostname), config->port);
   rush_t ctx = new rush_context;
   if(!Rush::Create(ctx, private_addr, &config->port, config->mtu,
@@ -16,6 +20,9 @@ rush_t rush_create(RushConfig *config) {
     BASE_ERROR(Rush::kRush, "failed to initialize");
     return nullptr;
   }
+  Base::Url created_addr(Base::AddressIPv4(config->hostname), config->port);
+  BASE_INFO(Rush::kRush, "created: %p address: %s:%s", ctx,
+            created_addr.GetHostname(), created_addr.GetService());
   return ctx;
 }
 
@@ -30,11 +37,18 @@ int rush_startup(rush_t ctx, const char *hostname, const char *service) {
   return Rush::Startup(ctx, server) ? 0 : -1;
 }
 
-void rush_shutdown(rush_t ctx) { Rush::Shutdown(ctx); }
+void rush_shutdown(rush_t ctx) {
+  if(!ctx) {
+    return;
+  }
+  Rush::Shutdown(ctx);
+}
 
-endpoint_t rush_open(rush_t ctx, const Base::Url &private_addr,
-                     const Base::Url &public_addr) {
-  return Rush::Open(ctx, private_addr, public_addr);
+endpoint_t rush_open(rush_t ctx, const char *private_addr, u32 private_addr_len,
+                     const char *public_addr, u32 public_addr_len) {
+  Base::Url address_priv(private_addr);
+  Base::Url address_pub(public_addr);
+  return Rush::Open(ctx, address_priv, address_pub);
 }
 
 void rush_close(rush_t ctx, endpoint_t endpoint) { Rush::Close(ctx, endpoint); }
